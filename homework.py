@@ -12,21 +12,14 @@ from telegram.error import TelegramError
 
 from exceptions import ResponseError
 
-formatter = '%(asctime)s %(levelname)s %(message)s'
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format=formatter,
+    format='%(asctime)s %(levelname)s %(message)s',
     filename='bot_logs.log',
     filemode='w',
     encoding='utf-8',
 )
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-handler = StreamHandler(sys.stdout)
-handler.setFormatter(logging.Formatter(formatter))
-logger.addHandler(handler)
 
 load_dotenv()
 
@@ -45,13 +38,32 @@ HOMEWORK_VERDICTS = {
 }
 
 
+def init_logger() -> logging.Logger:
+    """Инициализирует и настраивает логгер.
+
+    Returns:
+        logging.Logger: Настроенный логгер
+    """
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    handler = StreamHandler(sys.stdout)
+    handler.setFormatter(
+        logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    )
+    logger.addHandler(handler)
+    return logger
+
+
+logger = init_logger()
+
+
 def check_tokens() -> None:
     """Проверяет доступность переменных окружения необходимых для работы.
 
     Если хотя бы одна из переменных окружения отсутствует - завершает работу
     программы.
     """
-    if not (PRACTICUM_TOKEN and TELEGRAM_TOKEN and TELEGRAM_CHAT_ID):
+    if not all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID]):
         logger.critical('Ошибка при проверке переменных окружения.')
         sys.exit()
     logger.debug('Переменные окружения проверенны успешно.')
@@ -66,16 +78,15 @@ def send_message(bot: telegram.Bot, message: str) -> None:
         bot (telegram.Bot): экземпляр телеграм бота
         message (str): текст сообщения
     """
+    logger.debug('Начата отправка сообщения в чат Telegram')
     try:
-        logger.debug('Начата отправка сообщения в чат Telegram')
         bot.send_message(
             chat_id=TELEGRAM_CHAT_ID,
             text=message,
         )
     except TelegramError:
         logger.error("Ошибка при отправке сообщения в Telegram чат.")
-    else:
-        logger.debug('Сообщение успешно отправлено в Telegram чат.')
+    logger.debug('Сообщение успешно отправлено в Telegram чат.')
 
 
 def get_api_answer(timestamp: int) -> dict:
@@ -93,18 +104,21 @@ def get_api_answer(timestamp: int) -> dict:
         if response.status_code != HTTPStatus.OK:
             raise Exception('Получен некорректный ответ от сервера')
         logger.debug('Ответ от API получен')
-        return dict(response.json())
+        return response.json()
     except Exception as error:
         raise ResponseError(
             f'Произошла ошибка при обращении к API Практикума: {error}'
         )
 
 
-def check_response(response: dict) -> None:
+def check_response(response: dict) -> dict:
     """проверяет ответ API на соответствие документации.
 
     Args:
         response (_type_): ответ от API-сервиса.
+
+    Returns:
+        dict: информация о домашней работе
     """
     if not isinstance(response, dict):
         raise TypeError('Переменная response не соответсует типу dict')
@@ -117,6 +131,7 @@ def check_response(response: dict) -> None:
         raise ValueError('Список с домашками пуст')
 
     logger.debug('Ответ от API Практикума корректен.')
+    return homeworks[0]
 
 
 def parse_status(homework: dict) -> str:
@@ -147,9 +162,9 @@ def main() -> None:
     while True:
         try:
             api_answer = get_api_answer(timestamp)
-            check_response(api_answer)
+            homeworks = check_response(api_answer)
             timestamp = api_answer.get('current_date')
-            message = parse_status(api_answer.get('homeworks')[0])
+            message = parse_status(homeworks)
             last_message = message
             send_message(bot, message)
         except Exception as error:
