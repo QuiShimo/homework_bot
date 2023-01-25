@@ -13,14 +13,6 @@ from telegram.error import TelegramError
 from exceptions import ResponseError
 
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s %(levelname)s %(message)s',
-    filename='bot_logs.log',
-    filemode='w',
-    encoding='utf-8',
-)
-
 load_dotenv()
 
 PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
@@ -44,6 +36,14 @@ def init_logger() -> logging.Logger:
     Returns:
         logging.Logger: Настроенный логгер
     """
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s %(levelname)s %(message)s',
+        filename='bot_logs.log',
+        filemode='w',
+        encoding='utf-8',
+    )
+
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.DEBUG)
     handler = StreamHandler(sys.stdout)
@@ -85,7 +85,7 @@ def send_message(bot: telegram.Bot, message: str) -> None:
             text=message,
         )
     except TelegramError:
-        logger.error("Ошибка при отправке сообщения в Telegram чат.")
+        logger.error('Ошибка при отправке сообщения в Telegram чат.')
     logger.debug('Сообщение успешно отправлено в Telegram чат.')
 
 
